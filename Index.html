@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR & Payroll Dashboard - Block Analysis</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- XLSX.js CDN hỗ trợ nạp File Excel động -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased bg-slate-50">
+
+    <!-- Top 固定 Banner Brand Header -->
+    <header class="w-full bg-slate-900 text-white px-6 py-4 flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 shadow-md">
+        <div class="flex items-center gap-3 mb-3 md:mb-0">
+            <div class="h-9 w-9 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-lg flex items-center justify-center shadow-md">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2"></path></svg>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-sm tracking-tight text-white leading-none">ĐỒNG TÂM GROUP</h1>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 block">Hệ thống Dashboard Quản trị Nhân sự & Chi phí</span>
+            </div>
+        </div>
+        
+        <div class="flex flex-col md:flex-row items-end md:items-center gap-3">
+            <!-- Nút chọn file động xuất hiện góc phải trên nếu người dùng đồng ý nạp dữ liệu mới -->
+            <div id="upload-container" class="hidden">
+                <input type="file" id="excel-file" accept=".xlsx, .xls" class="text-[11px] text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 focus:outline-none">
+            </div>
+            <div class="flex items-center gap-2.5 text-[11px] font-semibold bg-slate-800/60 text-amber-300 border border-slate-700/50 rounded-xl px-3.5 py-2">
+                <span class="relative flex h-1.5 w-1.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                </span>
+                <span id="data-status-text">Tháng 4/2026 đầy đủ Thực tế. Các tháng khác hiển thị số Kế hoạch.</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Top Horizontal Filter Control Panel Bar -->
+    <section class="w-full bg-white border-b border-slate-200/80 px-6 py-4 shadow-xs sticky top-0 z-50">
+        <div class="max-w-[1700px] mx-auto flex flex-col xl:flex-row xl:items-end gap-4">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0 xl:pb-2">
+                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                Bộ lọc tham số:
+            </div>
+
+            <!-- Responsive Filters Form Grid Block -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 flex-1 w-full">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Năm</label>
+                    <select id="filter-year" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:bg-white transition-all"></select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tháng</label>
+                    <select id="filter-month" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:bg-white transition-all"></select>
+                </div>
+                <div class="col-span-2 md:col-span-1">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Công ty</label>
+                    <select id="filter-company" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:bg-white transition-all">
+                        <option value="ALL">-- Tất cả Đơn vị --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Khối</label>
+                    <select id="filter-block" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:bg-white transition-all">
+                        <option value="ALL">-- Tất cả Khối --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Phòng ban</label>
+                    <select id="filter-dept" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:bg-white transition-all">
+                        <option value="ALL">-- Tất cả Phòng ban --</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Workspace Frame -->
+    <main class="p-6 space-y-6 max-w-[1700px] mx-auto w-full">
+        
+        <!-- Filter Active Status Bar -->
+        <div class="text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-2xs">
+            <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+            <span id="current-filter-desc">Đang xử lý tham số...</span>
+        </div>
+
+        <!-- Three Core KPI Metrics Display Board -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <!-- Quỹ lương chính thức -->
+            <div id="card-payroll" class="bg-white rounded-xl shadow-xs border-l-4 border-slate-200 p-5 flex flex-col justify-between hover:shadow-md transition-all">
+                <div>
+                    <div class="flex items-center justify-between text-slate-400 mb-2">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quỹ lương chính thức</span>
+                        <div class="p-1.5 bg-indigo-50 text-indigo-600 rounded-md">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                    </div>
+                    <div class="space-y-0.5">
+                        <div class="text-xl font-extrabold text-slate-900 tracking-tight" id="kpi-act-payroll">-</div>
+                        <div class="text-[11px] text-slate-500">Ngân sách KH: <span id="kpi-plan-payroll" class="font-semibold text-slate-700">-</span></div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between" id="kpi-payroll-variance"></div>
+            </div>
+
+            <!-- Định biên nhân sự -->
+            <div id="card-hc" class="bg-white rounded-xl shadow-xs border-l-4 border-slate-200 p-5 flex flex-col justify-between hover:shadow-md transition-all">
+                <div>
+                    <div class="flex items-center justify-between text-slate-400 mb-2">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Định biên nhân sự</span>
+                        <div class="p-1.5 bg-sky-50 text-sky-600 rounded-md">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                        </div>
+                    </div>
+                    <div class="space-y-0.5">
+                        <div class="text-xl font-extrabold text-slate-900 tracking-tight" id="kpi-act-hc">-</div>
+                        <div class="text-[11px] text-slate-500">Định biên phê duyệt: <span id="kpi-plan-hc" class="font-semibold text-slate-700">-</span></div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between" id="kpi-hc-variance"></div>
+            </div>
+
+            <!-- Quỹ lương ngoài giờ -->
+            <div id="card-ot" class="bg-white rounded-xl shadow-xs border-l-4 border-slate-200 p-5 flex flex-col justify-between hover:shadow-md transition-all">
+                <div>
+                    <div class="flex items-center justify-between text-slate-400 mb-2">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quỹ lương ngoài giờ (OT)</span>
+                        <div class="p-1.5 bg-amber-50 text-amber-600 rounded-md">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                    </div>
+                    <div class="space-y-0.5">
+                        <div class="text-xl font-extrabold text-slate-900 tracking-tight" id="kpi-act-ot">-</div>
+                        <div class="text-[11px] text-slate-500">Kế hoạch OT duyệt: <span id="kpi-plan-ot" class="font-semibold text-slate-700">-</span></div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between" id="kpi-ot-variance"></div>
+            </div>
+        </div>
+
+        <!-- Charts dynamic level rendering row based on criteria filters -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200/80 p-4">
+                <h3 class="text-xs font-bold text-slate-900 mb-3 flex items-center gap-1.5">
+                    <span class="w-1 h-3 bg-indigo-600 rounded-full"></span> Biểu đồ so sánh Quỹ lương chính và Ngoài giờ (Theo bộ lọc hiện hành)
+                </h3>
+                <div class="h-60">
+                    <canvas id="chart-payroll"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200/80 p-4">
+                <h3 class="text-xs font-bold text-slate-900 mb-3 flex items-center gap-1.5">
+                    <span class="w-1 h-3 bg-sky-600 rounded-full"></span> Biểu đồ so sánh Định biên nhân sự (Theo bộ lọc hiện hành)
+                </h3>
+                <div class="h-60">
+                    <canvas id="chart-hc"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION: Specific Block Level Analytics Panel Area -->
+        <div class="space-y-4 pt-4 border-t border-slate-200">
+            <div class="flex items-center gap-2">
+                <div class="h-6 w-1.5 bg-emerald-600 rounded-full"></div>
+                <h2 class="text-base font-bold text-slate-900 tracking-tight uppercase">Phần phân tích riêng biệt & so sánh chuyên sâu cấp Khối chức năng</h2>
+            </div>
+            
+            <!-- Specific Block level dynamic graph charts row added here -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div class="bg-white rounded-xl border border-slate-200 p-4">
+                    <h4 class="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1">📊 Quỹ lương chính theo Khối</h4>
+                    <div class="h-48"><canvas id="chart-block-payroll"></canvas></div>
+                </div>
+                <div class="bg-white rounded-xl border border-slate-200 p-4">
+                    <h4 class="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1">👥 Trạng thái nhân sự theo Khối</h4>
+                    <div class="h-48"><canvas id="chart-block-hc"></canvas></div>
+                </div>
+                <div class="bg-white rounded-xl border border-slate-200 p-4">
+                    <h4 class="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1">⏰ Chi phí làm Ngoài giờ (OT) theo Khối</h4>
+                    <div class="h-48"><canvas id="chart-block-ot"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Block comparison structured data matrix panel table -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="px-5 py-3 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase tracking-wider">Bảng kê đối chiếu kế hoạch và thực hiện cấp Khối</span>
+                    <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">Tổng hợp động</span>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse min-w-[1000px]">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-600 uppercase text-[9px] font-bold tracking-wider border-b border-slate-200">
+                                <th class="px-5 py-3">Tên Khối chức năng</th>
+                                <th class="px-4 py-3 text-right">Định biên (KH)</th>
+                                <th class="px-4 py-3 text-right">Nhân sự (TT)</th>
+                                <th class="px-4 py-3 text-right">Lệch nhân sự</th>
+                                <th class="px-4 py-3 text-right">Quỹ Lương (KH)</th>
+                                <th class="px-4 py-3 text-right">Quỹ Lương (TT)</th>
+                                <th class="px-4 py-3 text-right">Tỷ lệ Lương</th>
+                                <th class="px-4 py-3 text-right">Ngoài giờ (KH)</th>
+                                <th class="px-4 py-3 text-right">Ngoài giờ (TT)</th>
+                                <th class="px-4 py-3 text-right">Lệch Ngoài giờ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="block-table-body" class="divide-y divide-slate-100 text-[11px] text-slate-700 font-semibold"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Full Breakdown Structured Tabular Matrix Area -->
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200/80 overflow-hidden pt-4">
+            <div class="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                <div>
+                    <h3 class="text-xs font-bold text-slate-900">Ma trận chi tiết phân rã số liệu phòng ban chi tiết hệ thống</h3>
+                </div>
+                <span class="text-[10px] bg-slate-200 text-slate-700 px-2.5 py-0.5 rounded-full font-bold shadow-2xs" id="table-row-count">0 dòng</span>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse min-w-[1100px]">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-600 uppercase text-[9px] font-bold tracking-wider border-b border-slate-200">
+                            <th class="px-5 py-3">Công ty thành viên</th>
+                            <th class="px-4 py-3">Khối chức năng</th>
+                            <th class="px-4 py-3">Phòng ban chi tiết</th>
+                            <th class="px-3 py-3 text-center">T.Năm</th>
+                            <th class="px-4 py-3 text-right">Định biên (KH)</th>
+                            <th class="px-4 py-3 text-right">Nhân sự (TT)</th>
+                            <th class="px-4 py-3 text-right">Quỹ Lương (KH)</th>
+                            <th class="px-4 py-3 text-right">Quỹ Lương (TT)</th>
+                            <th class="px-4 py-3 text-right">Ngoài giờ (KH)</th>
+                            <th class="px-4 py-3 text-right">Ngoài giờ (TT)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body" class="divide-y divide-slate-100 text-[11px] text-slate-700 font-medium"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- App Frontend Runtime Operations Architecture Controller Logic -->
+    <script>
+        // Cơ sở dữ liệu mặc định đã nạp sẵn phòng trường hợp người dùng không tải file mới
+        const defaultData = [{"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối CNTT", "department": "001 - Phòng Hạ Tầng", "Month": 4, "Year": 2026, "plan_hc": 8, "act_hc": 8.0, "plan_payroll": 162155923, "act_payroll": 151712481.0, "plan_ot": 0, "act_ot": 12560750.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối CNTT", "department": "001 - Phòng Hạ Tầng", "Month": 5, "Year": 2026, "plan_hc": 8, "act_hc": 0.0, "plan_payroll": 167378077, "act_payroll": 0.0, "plan_ot": 0, "act_ot": 0.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối CNTT", "department": "001 - Phòng Hạ Tầng", "Month": 6, "Year": 2026, "plan_hc": 8, "act_hc": 0.0, "plan_payroll": 164731750, "act_payroll": 0.0, "plan_ot": 0, "act_ot": 0.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối CNTT", "department": "001 - Phòng Hạ Tầng", "Month": 7, "Year": 2026, "plan_hc": 8, "act_hc": 0.0, "plan_payroll": 164767000, "act_payroll": 0.0, "plan_ot": 0, "act_ot": 0.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối CNTT", "department": "001 - Phòng Kiểm Soát CNTT", "Month": 4, "Year": 2026, "plan_hc": 2, "act_hc": 2.0, "plan_payroll": 72281000, "act_payroll": 70226167.0, "plan_ot": 0, "act_ot": 4394500.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối CNTT", "department": "001 - Phòng Kiểm Soát CNTT", "Month": 5, "Year": 2026, "plan_hc": 2, "act_hc": 0.0, "plan_payroll": 72435000, "act_payroll": 0.0, "plan_ot": 0, "act_ot": 0.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối CNTT", "department": "001 - Phòng Kiểm Soát CNTT", "Month": 6, "Year": 2026, "plan_hc": 2, "act_hc": 0.0, "plan_payroll": 72424500, "act_payroll": 0.0, "plan_ot": 0, "act_ot": 0.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối CNTT", "department": "001 - Phòng Kiểm Soát CNTT", "Month": 7, "Year": 2026, "plan_hc": 2, "act_hc": 0.0, "plan_payroll": 72508000, "act_payroll": 0.0, "plan_ot": 0, "act_ot": 0.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối CNTT", "department": "001 - Phòng Ứng Dụng CNTT", "Month": 4, "Year": 2026, "plan_hc": 9, "act_hc": 9.0, "plan_payroll": 309199500, "act_payroll": 260550667.0, "plan_ot": 0, "act_ot": 18048000.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối Cung Ứng", "department": "001 - Phòng KH Chuỗi Cung Ứng", "Month": 4, "Year": 2026, "plan_hc": 3, "act_hc": 2.0, "plan_payroll": 56021500, "act_payroll": 54230167.0, "plan_ot": 0, "act_ot": 4347500.0}, {"company": "Công Ty Cổ Phần Đồng Tâm", "block": "Khối HC-NS", "department": "001 - Phòng Hành Chính", "Month": 4, "Year": 2026, "plan_hc": 15, "act_hc": 15.0, "plan_payroll": 207080808, "act_payroll": 239814328.0, "plan_ot": 0, "act_ot": 24980500.0}, {"company": "Công Ty Cổ Phần Đồng Tâm Dotalia", "block": "Khối Sản Xuất", "department": "005 - Phân Xưởng Sản Xuất", "Month": 4, "Year": 2026, "plan_hc": 108, "act_hc": 88.0, "plan_payroll": 1864207626, "act_payroll": 1504009864.0, "plan_ot": 241627747, "act_ot": 106619500.0}, {"company": "Công Ty Cổ Phần Đồng Tâm Miền Trung", "block": "Khối Sản Xuất", "department": "002 - Phân Xưởng SX_2", "Month": 4, "Year": 2026, "plan_hc": 51, "act_hc": 43.0, "plan_payroll": 960886912, "act_payroll": 324928039.0, "plan_ot": 90201462, "act_ot": 54602250.0}, {"company": "Công Ty TNHH Bê Tông 620 - Đồng Tâm", "block": "Khối Sản Xuất", "department": "013 - Phân Xưởng SX_Bến Lức", "Month": 4, "Year": 2026, "plan_hc": 96, "act_hc": 89.0, "plan_payroll": 1630034250, "act_payroll": 760566255.0, "plan_ot": 54686250, "act_ot": 120085000.0}, {"company": "Công Ty TNHH MTV SX VLXD Đồng Tâm", "block": "Khối Sản Xuất", "department": "010 - Phân Xưởng SX", "Month": 4, "Year": 2026, "plan_hc": 71, "act_hc": 47.0, "plan_payroll": 1258373981, "act_payroll": 899878790.0, "plan_ot": 156321346, "act_ot": 63097500.0}, {"company": "Công Ty TNHH MTV Thương Mại Đồng Tâm", "block": "Khối Kinh Doanh", "department": "012 - Phòng Xử Lý Đơn Hàng", "Month": 4, "Year": 2026, "plan_hc": 25, "act_hc": 25.0, "plan_payroll": 298235000, "act_payroll": 302583588.0, "plan_ot": 0, "act_ot": 42217750.0}, {"company": "Công Ty TNHH SX - XD - TM Đồng Tâm", "block": "Khối Sản Xuất", "department": "003 - Phân Xưởng SX Gạch Bông", "Month": 4, "Year": 2026, "plan_hc": 38, "act_hc": 33.0, "plan_payroll": 498992058, "act_payroll": 527612348.0, "plan_ot": 0, "act_ot": 46870750.0}];
+
+        let rawData = [...defaultData];
+
+        let chartPayrollInstance = null;
+        let chartHcInstance = null;
+        let chartBlockPayrollInstance = null;
+        let chartBlockHcInstance = null;
+        let chartBlockOtInstance = null;
+
+        window.addEventListener('load', () => {
+            // Xác thực xem người dùng muốn nạp mới dữ liệu động từ Excel hay dùng dữ liệu tích hợp sẵn
+            let wantUpload = confirm("HỆ THỐNG ĐỘNG:\nBạn có muốn nạp dữ liệu từ file Excel Quyluong.xlsx mới nhất không?\n- Bấm OK để tải file lên.\n- Bấm Cancel để xem ngay dữ liệu đã có sẵn.");
+            if (wantUpload) {
+                document.getElementById('upload-container').classList.remove('hidden');
+                document.getElementById('excel-file').addEventListener('change', handleExcelUpload, false);
+                document.getElementById('data-status-text').innerText = "Vui lòng chọn file .xlsx ở góc trên bên phải.";
+            } else {
+                initFiltersAndRender();
+            }
+        });
+
+        // Xử lý đọc tệp dữ liệu động Excel từ phía client
+        function handleExcelUpload(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            const file = files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(evt) {
+                const data = new Uint8Array(evt.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('sheet') || name.startsWith('Sheet'));
+                
+                if (!sheetName) {
+                    alert("Không tìm thấy Sheet hợp lệ!");
+                    return;
+                }
+
+                const worksheet = workbook.Sheets[sheetName];
+                const rawJson = XLSX.utils.sheet_to_json(worksheet);
+
+                // Đồng bộ và chuyển đổi tên cột từ Excel sang biến JS runtime
+                rawData = rawJson.map(row => {
+                    let my = row['Tháng.Năm'] || 0;
+                    let m = 0, y = 0;
+                    if (my) {
+                        let tokens = String(my).split('.');
+                        m = parseInt(tokens[0]) || 0;
+                        y = parseInt(tokens[1]) || 0;
+                    }
+                    return {
+                        company: row['Công ty'] || '',
+                        block: row['Khối theo Group'] || row['Khối'] || '',
+                        department: row['Phòng ban'] || '',
+                        Month: m,
+                        Year: y,
+                        plan_hc: parseFloat(row['SL định biên']) || 0,
+                        act_hc: row['SL thực tế'] !== undefined ? parseFloat(row['SL thực tế']) : null,
+                        plan_payroll: parseFloat(row['Kế hoạch quỹ lương']) || 0,
+                        act_payroll: row['Thực hiện quỹ lương'] !== undefined ? parseFloat(row['Thực hiện quỹ lương']) : null,
+                        plan_ot: parseFloat(row['Kế hoạch\nquỹ lương ngoài giờ']) || parseFloat(row['Kế hoạch quỹ lương ngoài giờ']) || 0,
+                        act_ot: row['Thực hiện\nquỹ lương ngoài giờ'] !== undefined ? parseFloat(row['Thực hiện\nquỹ lương ngoài giờ']) : (row['Thực hiện quỹ lương ngoài giờ'] !== undefined ? parseFloat(row['Thực hiện quỹ lương ngoài giờ']) : null)
+                    };
+                }).filter(d => d.company && d.company !== 'Overall Result' && d.Month > 0);
+
+                document.getElementById('data-status-text').innerText = `Đang hiển thị dữ liệu tải lên từ file: ${file.name}`;
+                initFiltersAndRender();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function initFiltersAndRender() {
+            // Khởi tạo danh sách bộ lọc độc lập từ dữ liệu hiện hành
+            const years = [...new Set(rawData.map(d => d.Year))].sort();
+            const months = [...new Set(rawData.map(d => d.Month))].sort((a,b) => a-b);
+            const companies = [...new Set(rawData.map(d => d.company))].sort();
+
+            const yearSelect = document.getElementById('filter-year');
+            yearSelect.innerHTML = "";
+            years.forEach(y => { if(y) yearSelect.add(new Option(y, y)); });
+            if (years.includes(2026)) yearSelect.value = 2026;
+
+            const monthSelect = document.getElementById('filter-month');
+            monthSelect.innerHTML = "";
+            months.forEach(m => { if(m) monthSelect.add(new Option("Tháng " + m, m)); });
+            if (months.includes(4)) monthSelect.value = 4;
+
+            const compSelect = document.getElementById('filter-company');
+            compSelect.innerHTML = '<option value="ALL">-- Tất cả Đơn vị --</option>';
+            companies.forEach(c => { if(c) compSelect.add(new Option(c, c)); });
+
+            compSelect.removeEventListener('change', updateBlockOptions);
+            compSelect.addEventListener('change', updateBlockOptions);
+            
+            document.getElementById('filter-block').removeEventListener('change', updateDeptOptions);
+            document.getElementById('filter-block').addEventListener('change', updateDeptOptions);
+
+            [yearSelect, monthSelect, compSelect, document.getElementById('filter-block'), document.getElementById('filter-dept')].forEach(el => {
+                el.removeEventListener('change', renderDashboard);
+                el.addEventListener('change', renderDashboard);
+            });
+
+            updateBlockOptions();
+        }
+
+        function updateBlockOptions() {
+            const compVal = document.getElementById('filter-company').value;
+            const blockSelect = document.getElementById('filter-block');
+            blockSelect.innerHTML = '<option value="ALL">-- Tất cả Khối --</option>';
+
+            let filtered = rawData;
+            if (compVal !== 'ALL') filtered = filtered.filter(d => d.company === compVal);
+
+            const blocks = [...new Set(filtered.map(d => d.block))].sort();
+            blocks.forEach(b => { if(b) blockSelect.add(new Option(b, b)); });
+
+            updateDeptOptions();
+        }
+
+        function updateDeptOptions() {
+            const compVal = document.getElementById('filter-company').value;
+            const blockVal = document.getElementById('filter-block').value;
+            const deptSelect = document.getElementById('filter-dept');
+            deptSelect.innerHTML = '<option value="ALL">-- Tất cả Phòng ban --</option>';
+
+            let filtered = rawData;
+            if (compVal !== 'ALL') filtered = filtered.filter(d => d.company === compVal);
+            if (blockVal !== 'ALL') filtered = filtered.filter(d => d.block === blockVal);
+
+            const depts = [...new Set(filtered.map(d => d.department))].sort();
+            depts.forEach(d => { if(d) deptSelect.add(new Option(d, d)); });
+
+            renderDashboard();
+        }
+
+        function formatVND(val) {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val).replace('₫', 'đ');
+        }
+
+        function formatNum(val) {
+            return new Intl.NumberFormat('vi-VN').format(Math.round(val * 10) / 10);
+        }
+
+        function renderDashboard() {
+            const yearVal = document.getElementById('filter-year').value;
+            const monthVal = document.getElementById('filter-month').value;
+            const compVal = document.getElementById('filter-company').value;
+            const blockVal = document.getElementById('filter-block').value;
+            const deptVal = document.getElementById('filter-dept').value;
+
+            // Xử lý bộ lọc kích hoạt hiển thị ở thanh trạng thái
+            document.getElementById('current-filter-desc').innerText = `Bộ lọc đang chọn: Năm ${yearVal} | Tháng ${monthVal} | Đơn vị: ${compVal} | Khối: ${blockVal} | Phòng ban: ${deptVal}`;
+
+            let filtered = rawData;
+            if (yearVal !== 'ALL') filtered = filtered.filter(d => d.Year == yearVal);
+            if (monthVal !== 'ALL') filtered = filtered.filter(d => d.Month == monthVal);
+            if (compVal !== 'ALL') filtered = filtered.filter(d => d.company === compVal);
+            if (blockVal !== 'ALL') filtered = filtered.filter(d => d.block === blockVal);
+            if (deptVal !== 'ALL') filtered = filtered.filter(d => d.department === deptVal);
+
+            let totalPlanPayroll = 0, totalActPayroll = 0;
+            let totalPlanHc = 0, totalActHc = 0;
+            let totalPlanOt = 0, totalActOt = 0;
+
+            filtered.forEach(d => {
+                totalPlanPayroll += d.plan_payroll || 0;
+                totalActPayroll += d.act_payroll || 0;
+                totalPlanHc += d.plan_hc || 0;
+                totalActHc += d.act_hc || 0;
+                totalPlanOt += d.plan_ot || 0;
+                totalActOt += d.act_ot || 0;
+            });
+
+            document.getElementById('kpi-plan-payroll').innerText = formatVND(totalPlanPayroll);
+            document.getElementById('kpi-act-payroll').innerText = formatVND(totalActPayroll);
+            document.getElementById('kpi-plan-hc').innerText = formatNum(totalPlanHc);
+            document.getElementById('kpi-act-hc').innerText = formatNum(totalActHc);
+            document.getElementById('kpi-plan-ot').innerText = formatVND(totalPlanOt);
+            document.getElementById('kpi-act-ot').innerText = formatVND(totalActOt);
+
+            // Phân bổ Màu cảnh báo cho 3 Thẻ KPI chính ở phía trên đầu trang
+            renderVarianceBadge('kpi-payroll-variance', 'card-payroll', totalPlanPayroll, totalActPayroll, 'payroll');
+            renderVarianceBadge('kpi-hc-variance', 'card-hc', totalPlanHc, totalActHc, 'hc');
+            renderVarianceBadge('kpi-ot-variance', 'card-ot', totalPlanOt, totalActOt, 'ot');
+
+            updateBlockSection(filtered);
+            updateCharts(filtered, compVal, blockVal);
+            updateTable(filtered);
+        }
+
+        // Logic điều phối màu sắc giao diện theo yêu cầu cụ thể (Xanh: Tốt, Vàng: Cảnh báo, Đỏ: Nguy hiểm)
+        function renderVarianceBadge(elementId, cardId, plan, act, type) {
+            const el = document.getElementById(elementId);
+            const card = document.getElementById(cardId);
+            
+            card.classList.remove('border-green-500', 'bg-green-50/50', 'border-yellow-500', 'bg-yellow-50/50', 'border-red-500', 'bg-red-50/50', 'border-slate-200');
+
+            if (plan === 0 && act === 0) {
+                el.innerHTML = `<span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Không có phát sinh</span>`;
+                card.classList.add('border-slate-200');
+                return;
+            }
+            if (plan === 0 && act > 0) {
+                el.innerHTML = `<span class="text-[10px] font-bold text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded">🔴 Vượt chi nguy hiểm: KH = 0</span>`;
+                card.classList.add('border-red-500', 'bg-red-50/50');
+                return;
+            }
+
+            const diff = act - plan;
+            const pct = (diff / plan) * 100;
+            
+            if (type === 'hc') {
+                if (Math.abs(pct) <= 5) {
+                    el.innerHTML = `<span class="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2 py-0.5 rounded">🟢 Tốt: Bám sát định biên (${formatNum(pct)}%)</span>`;
+                    card.classList.add('border-green-500', 'bg-green-50/50');
+                } else if (pct < -5) {
+                    el.innerHTML = `<span class="text-[10px] font-bold text-yellow-700 bg-yellow-100 border border-yellow-200 px-2 py-0.5 rounded">🟡 Cảnh báo: Thiếu hụt nhân lực (${formatNum(pct)}%)</span>`;
+                    card.classList.add('border-yellow-500', 'bg-yellow-50/50');
+                } else {
+                    el.innerHTML = `<span class="text-[10px] font-bold text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded">🔴 Vượt định biên: +${formatNum(pct)}%</span>`;
+                    card.classList.add('border-red-500', 'bg-red-50/50');
+                }
+            } else {
+                if (diff <= 0) {
+                    el.innerHTML = `<span class="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2 py-0.5 rounded">🟢 Tốt: Tiết kiệm ngân sách (${formatNum(Math.abs(pct))}%)</span>`;
+                    card.classList.add('border-green-500', 'bg-green-50/50');
+                } else if (pct <= 5) {
+                    el.innerHTML = `<span class="text-[10px] font-bold text-yellow-700 bg-yellow-100 border border-yellow-200 px-2 py-0.5 rounded">🟡 Cảnh báo vượt chi nhẹ: +${formatNum(pct)}%</span>`;
+                    card.classList.add('border-yellow-500', 'bg-yellow-50/50');
+                } else {
+                    el.innerHTML = `<span class="text-[10px] font-bold text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded">🔴 Nguy hiểm vượt chi: +${formatNum(pct)}%</span>`;
+                    card.classList.add('border-red-500', 'bg-red-50/50');
+                }
+            }
+        }
+
+        function updateBlockSection(filteredData) {
+            const tbody = document.getElementById('block-table-body');
+            tbody.innerHTML = '';
+
+            const blockGroups = {};
+            filteredData.forEach(d => {
+                const bName = d.block || 'Chưa rõ Khối';
+                if (!blockGroups[bName]) {
+                    blockGroups[bName] = { plan_h: 0, act_h: 0, plan_p: 0, act_p: 0, plan_o: 0, act_o: 0 };
+                }
+                blockGroups[bName].plan_h += d.plan_hc || 0;
+                blockGroups[bName].act_h += d.act_hc || 0;
+                blockGroups[bName].plan_p += d.plan_payroll || 0;
+                blockGroups[bName].act_p += d.act_payroll || 0;
+                blockGroups[bName].plan_o += d.plan_ot || 0;
+                blockGroups[bName].act_o += d.act_ot || 0;
+            });
+
+            const labels = Object.keys(blockGroups).sort();
+            const blockPlanP = [], blockActP = [];
+            const blockPlanH = [], blockActH = [];
+            const blockPlanO = [], blockActO = [];
+
+            labels.forEach(bName => {
+                const bg = blockGroups[bName];
+                blockPlanP.push(bg.plan_p); blockActP.push(bg.act_p);
+                blockPlanH.push(bg.plan_h); blockActH.push(bg.act_h);
+                blockPlanO.push(bg.plan_o); blockActO.push(bg.act_o);
+
+                const hcDiff = bg.act_h - bg.plan_h;
+                const otDiff = bg.act_o - bg.plan_o;
+                const pPct = bg.plan_p > 0 ? (bg.act_p / bg.plan_p * 100).toFixed(1) + '%' : '-';
+
+                let hcColor = 'text-green-600';
+                if (hcDiff > 0) hcColor = 'text-red-600 bg-red-50';
+                if (hcDiff < 0) hcColor = 'text-yellow-600 bg-yellow-50';
+
+                let pColor = 'text-green-600';
+                if (bg.act_p > bg.plan_p) pColor = (bg.act_p - bg.plan_p) / bg.plan_p > 0.05 ? 'text-red-600 font-bold bg-red-50' : 'text-yellow-600 font-semibold bg-yellow-50';
+
+                let otColor = 'text-green-600';
+                if (otDiff > 0) otColor = bg.plan_o === 0 ? 'text-red-600 font-bold bg-red-50' : 'text-yellow-600 font-semibold bg-yellow-50';
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 border-b border-slate-100 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-5 py-3 font-bold text-slate-900">${bName}</td>
+                    <td class="px-4 py-3 text-right font-mono">${formatNum(bg.plan_h)}</td>
+                    <td class="px-4 py-3 text-right font-mono">${formatNum(bg.act_h)}</td>
+                    <td class="px-4 py-3 text-right font-mono ${hcColor}">${hcDiff > 0 ? '+' : ''}${formatNum(hcDiff)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-500">${formatNum(bg.plan_p)}</td>
+                    <td class="px-4 py-3 text-right font-mono ${pColor}">${formatNum(bg.act_p)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-500">${pPct}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-400">${formatNum(bg.plan_o)}</td>
+                    <td class="px-4 py-3 text-right font-mono ${otColor}">${formatNum(bg.act_o)}</td>
+                    <td class="px-4 py-3 text-right font-mono ${otColor}">${otDiff > 0 ? '+' : ''}${formatNum(otDiff)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Đồng bộ 3 biểu đồ chuyên sâu cấp Khối chức năng
+            const shortLabels = labels.map(l => l.length > 15 ? l.substring(0, 12) + '...' : l);
+
+            if(chartBlockPayrollInstance) chartBlockPayrollInstance.destroy();
+            chartBlockPayrollInstance = new Chart(document.getElementById('chart-block-payroll').getContext('2d'), {
+                type: 'bar',
+                data: { labels: shortLabels, datasets: [{ label: 'Kế hoạch', data: blockPlanP, backgroundColor: '#6366f1' }, { label: 'Thực tế', data: blockActP, backgroundColor: '#10b981' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            if(chartBlockHcInstance) chartBlockHcInstance.destroy();
+            chartBlockHcInstance = new Chart(document.getElementById('chart-block-hc').getContext('2d'), {
+                type: 'bar',
+                data: { labels: shortLabels, datasets: [{ label: 'Định biên KH', data: blockPlanH, backgroundColor: '#3b82f6' }, { label: 'Nhân sự TT', data: blockActH, backgroundColor: '#f59e0b' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            if(chartBlockOtInstance) chartBlockOtInstance.destroy();
+            chartBlockOtInstance = new Chart(document.getElementById('chart-block-ot').getContext('2d'), {
+                type: 'bar',
+                data: { labels: shortLabels, datasets: [{ label: 'OT Kế hoạch', data: blockPlanO, backgroundColor: '#94a3b8' }, { label: 'OT Thực tế', data: blockActO, backgroundColor: '#ef4444' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function updateCharts(filteredData, compFilter, blockFilter) {
+            let groupBy = 'company';
+            if (compFilter !== 'ALL') groupBy = 'block';
+            if (blockFilter !== 'ALL') groupBy = 'department';
+
+            const groups = {};
+            filteredData.forEach(d => {
+                const key = d[groupBy] || 'Khác';
+                if (!groups[key]) {
+                    groups[key] = { plan_p: 0, act_p: 0, plan_h: 0, act_h: 0, plan_ot: 0, act_ot: 0 };
+                }
+                groups[key].plan_p += d.plan_payroll || 0;
+                groups[key].act_p += d.act_payroll || 0;
+                groups[key].plan_h += d.plan_hc || 0;
+                groups[key].act_h += d.act_hc || 0;
+                groups[key].plan_ot += d.plan_ot || 0;
+                groups[key].act_ot += d.act_ot || 0;
+            });
+
+            const labels = Object.keys(groups);
+            const shortLabels = labels.map(l => l.length > 20 ? l.substring(0, 17) + '...' : l);
+
+            if(chartPayrollInstance) chartPayrollInstance.destroy();
+            chartPayrollInstance = new Chart(document.getElementById('chart-payroll').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: shortLabels,
+                    datasets: [
+                        { label: 'Ngân sách KH', data: labels.map(l => groups[l].plan_p), backgroundColor: '#818cf8' },
+                        { label: 'Giải ngân TT', data: labels.map(l => groups[l].act_p), backgroundColor: '#34d399' },
+                        { label: 'Ngoài giờ TT', data: labels.map(l => groups[l].act_ot), backgroundColor: '#ef4444' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+
+            if(chartHcInstance) chartHcInstance.destroy();
+            chartHcInstance = new Chart(document.getElementById('chart-hc').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: shortLabels,
+                    datasets: [
+                        { label: 'Định biên kế hoạch', data: labels.map(l => groups[l].plan_h), backgroundColor: '#38bdf8' },
+                        { label: 'Nhân sự thực tế', data: labels.map(l => groups[l].act_h), backgroundColor: '#fbbf24' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        function updateTable(filteredData) {
+            const tbody = document.getElementById('data-table-body');
+            tbody.innerHTML = '';
+            document.getElementById('table-row-count').innerText = `${filteredData.length} dòng`;
+
+            filteredData.forEach(d => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition-colors border-b border-slate-100";
+                
+                const p_diff = (d.act_payroll - d.plan_payroll);
+                let p_style = 'text-green-600'; 
+                if(p_diff > 0) p_style = (p_diff / d.plan_payroll > 0.05) ? 'text-red-600 font-bold bg-red-50' : 'text-yellow-600 font-semibold bg-yellow-50';
+                
+                const hc_diff = (d.act_hc - d.plan_hc);
+                let hc_style = 'text-slate-600';
+                if(hc_diff > 0) hc_style = 'text-red-600 bg-red-50';
+                if(hc_diff < 0) hc_style = 'text-yellow-600 bg-yellow-50';
+
+                const ot_diff = (d.act_ot - d.plan_ot);
+                let ot_style = 'text-slate-600';
+                if(ot_diff > 0) ot_style = d.plan_ot === 0 ? 'text-red-600 font-bold bg-red-50' : 'text-yellow-600 font-semibold bg-yellow-50';
+
+                tr.innerHTML = `
+                    <td class="px-5 py-2.5 font-bold text-slate-900 truncate max-w-[200px]">${d.company}</td>
+                    <td class="px-4 py-2.5 truncate max-w-[150px] text-slate-500">${d.block || '-'}</td>
+                    <td class="px-4 py-2.5 truncate max-w-[200px] text-slate-600">${d.department || '-'}</td>
+                    <td class="px-3 py-2.5 text-center font-mono text-slate-400">${d.Month}.${d.Year}</td>
+                    <td class="px-4 py-2.5 text-right font-mono">${formatNum(d.plan_hc)}</td>
+                    <td class="px-4 py-2.5 text-right font-mono ${hc_style}">${formatNum(d.act_hc)}</td>
+                    <td class="px-4 py-2.5 text-right font-mono text-slate-400">${formatNum(d.plan_payroll)}</td>
+                    <td class="px-4 py-2.5 text-right font-mono ${p_style}">${formatNum(d.act_payroll)}</td>
+                    <td class="px-4 py-2.5 text-right font-mono text-slate-400">${formatNum(d.plan_ot)}</td>
+                    <td class="px-4 py-2.5 text-right font-mono ${ot_style}">${formatNum(d.act_ot)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
